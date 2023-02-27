@@ -47,23 +47,34 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             
             if args.clr_loss:
                 b, c, n = cams.shape
-                dim = patch_features.shape[-1] # b, n, d
-                code.interact(local=dict(globals(), **locals()))
+                d = patch_features.shape[-1] # b, n, d
                 
+                fg_feats = None 
+                bg_feats = None 
+                if args.patch_clr:
+                    patches = cams.permute((0, 2, 1)).flatten(start_dim=0, end_dim=1).unsqueeze(dim=2)
+                    features = patch_features.flatten(start_dim=0, end_dim=1).unsqueeze(dim=1)
+                    fg_feats = torch.matmul(patches, features)
+                    bg_feats = torch.matmul(1-patches, features)
+                else: 
+                    fg_feats = (torch.matmul(cams, patch_features) / (n)).reshape(b, d * c)
+                    bg_feats = (torch.matmul(1-cams, patch_features) / (n)).reshape(b, d * c)
                 
-                clr_loss = 0
+                clr_loss = 0 
+                for i in range(c):
+                    ith_fg_feat = fg_feats[:, i:, ]
+                    ith_bg_feat = bg_feats[:, i:, ]
+                    ith_clr_loss = criterion[0](ith_fg_feat) + criterion[1](ith_fg_feat, ith_bg_feat) + criterion[2](ith_bg_feat)
+                    clr_loss += ith_clr_loss
 
+                clr_loss = clr_loss/20
 
-                # 
-                fg_feats = (torch.matmul(cams, patch_features) / (n)).reshape(b, dim * c)
-                bg_feats = (torch.matmul(1-cams, patch_features) / (n)).reshape(b, dim * c)
-                clr_loss = criterion[0](fg_feats) + criterion[1](fg_feats, bg_feats) + criterion[2](bg_feats)
                 metric_logger.update(clr_loss=clr_loss.item())
                 loss = (args.cls_weight * multi_label_soft_margin_loss) + (args.clr_weight * clr_loss)
             else:
                 loss = multi_label_soft_margin_loss
             
-            if  patch_outputs is not None:
+            if patch_outputs is not None:
                 ploss = F.multilabel_soft_margin_loss(patch_outputs, targets)
                 metric_logger.update(pat_loss=ploss.item())
                 loss = loss + ploss
@@ -121,12 +132,27 @@ def evaluate(args, data_loader, model, device):
             
             if args.clr_loss:
                 b, c, n = predictions.shape
-                dim = patch_features.shape[-1]
-                    
-                fg_feats = (torch.matmul(predictions, patch_features) / (n)).reshape(b, dim * c)
-                bg_feats = (torch.matmul(1-predictions, patch_features) / (n)).reshape(b, dim * c)
-                clr_loss = clr_criterion[0](fg_feats) + clr_criterion[1](fg_feats, bg_feats) + clr_criterion[2](bg_feats)
-                loss = (args.cls_weight * cls_loss) + (args.clr_weight * clr_loss)
+                d = patch_features.shape[-1] # b, n, d
+                
+                fg_feats = None 
+                bg_feats = None 
+                if args.patch_clr:
+                    patches = predictions.permute((0, 2, 1)).flatten(start_dim=0, end_dim=1).unsqueeze(dim=2)
+                    features = patch_features.flatten(start_dim=0, end_dim=1).unsqueeze(dim=1)
+                    fg_feats = torch.matmul(patches, features)
+                    bg_feats = torch.matmul(1-patches, features)
+                else: 
+                    fg_feats = (torch.matmul(predictions, patch_features) / (n)).reshape(b, d * c)
+                    bg_feats = (torch.matmul(1-predictions, patch_features) / (n)).reshape(b, d * c)
+                
+                clr_loss = 0 
+                for i in range(c):
+                    ith_fg_feat = fg_feats[:, i:, ]
+                    ith_bg_feat = bg_feats[:, i:, ]
+                    ith_clr_loss = clr_criterion[0](ith_fg_feat) + clr_criterion[1](ith_fg_feat, ith_bg_feat) + clr_criterion[2](ith_bg_feat)
+                    clr_loss += ith_clr_loss
+
+                clr_loss = clr_loss/20
             else:
                 loss = cls_loss
             

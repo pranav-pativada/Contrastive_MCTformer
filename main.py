@@ -147,6 +147,7 @@ def get_args_parser():
     # Loss and Metric Customisation
     parser.add_argument('--clr_loss', action='store_true')
     parser.add_argument('--mIOU_metric', action='store_true')
+    parser.add_argument('--patch_clr', action='store_true')
     
     # Weights for Loss
     parser.add_argument('--cls_weight', type=int, default=1)

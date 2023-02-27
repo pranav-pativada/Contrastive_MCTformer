@@ -5,8 +5,10 @@ import code
 
 if __name__ == '__main__':
     
-    cls_labels_dict = np.load('cls_labels.npy', allow_pickle=True).item()
-    
+    label_path = '../voc12/'
+
+    cls_labels_dict = np.load(os.path.join(label_path, 'cls_labels.npy'), allow_pickle=True).item()
+
     # Extract Train Images
     train_img_list = [img_name.strip() for img_name in open('train_id_ori.txt').readlines()]
     train_npy_list = []
